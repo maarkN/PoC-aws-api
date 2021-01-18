@@ -26,6 +26,7 @@ provider:
   memorySize: 128
   timeout: 30
   lambdaHashingVersion: 20201221
+  apiGateway: { shouldStartNameWithService: true }
 
 # you can overwrite defaults here
 #  stage: dev

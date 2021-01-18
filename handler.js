@@ -7,7 +7,7 @@ module.exports.getUsers = async (event, context, callback) => {
   // for more info: https://docs.aws.amazon.com/lambda/latest/dg/nodejs-context.html
   context.callbackWaitsForEmptyEventLoop = false;
 
-  const promise = new Promise((resolve, reject) => {
+  const getUsersPromise = new Promise((resolve, reject) => {
     connection.query("SELECT * FROM users", function (err, results) {
       if (err) {
         reject({ error: err });
@@ -17,7 +17,7 @@ module.exports.getUsers = async (event, context, callback) => {
     });
   });
 
-  const result = await promise;
+  const result = await getUsersPromise;
 
   callback(null, {
     statusCode: result.error ? result.error.statusCode || 500 : 200,
@@ -46,7 +46,7 @@ module.exports.createUser = async (event, context, callback) => {
     });
   }
 
-  const promise = new Promise((resolve, reject) => {
+  const createUserPromise = new Promise((resolve, reject) => {
     const sql = "INSERT INTO users (name, email) VALUES (?,?)";
     const values = [data.name, data.email];
     connection.query(sql, values, function (err, results) {
@@ -58,7 +58,7 @@ module.exports.createUser = async (event, context, callback) => {
     });
   });
 
-  const result = await promise;
+  const result = await createUserPromise;
 
   callback(null, {
     statusCode: result.error ? result.error.statusCode || 500 : 200,
@@ -92,7 +92,7 @@ module.exports.updateUser = async (event, context, callback) => {
     });
   }
 
-  const promise = new Promise((resolve, reject) => {
+  const updateUserPromise = new Promise((resolve, reject) => {
     const sql = "UPDATE users SET name=?, email=? WHERE userId=?";
     const values = [data.name, data.email, event.pathParameters.id];
     connection.query(sql, values, function (err, results) {
@@ -105,7 +105,7 @@ module.exports.updateUser = async (event, context, callback) => {
   });
 
   
-  const result = await promise;
+  const result = await updateUserPromise;
   
   callback(null, {
     statusCode: result.error ? result.error.statusCode || 500 : 200,
@@ -122,7 +122,6 @@ module.exports.deleteUser = async (event, context, callback) => {
   // for more info: https://docs.aws.amazon.com/lambda/latest/dg/nodejs-context.html
   context.callbackWaitsForEmptyEventLoop = false;
   const qs = require("querystring");
-  const data = qs.parse(event.body);
 
   if (
     !event.multiValueHeaders["Content-Type"].includes(
@@ -135,8 +134,20 @@ module.exports.deleteUser = async (event, context, callback) => {
         "Error: Content-Type is different of accepted ['application/x-www-form-urlencoded']",
     });
   }
+  
+  const haveUserPromise = new Promise((resolve, reject) => {
+    const sql = "SELECT * FROM users WHERE userId=?";
+    const values = [event.pathParameters.id];
+    connection.query(sql, values, function (err, results) {
+      if (err) {
+        reject({ error: err });
+      } else {
+        resolve(results);
+      }
+    });
+  });
 
-  const promise = new Promise((resolve, reject) => {
+  const deleteUserPromise = new Promise((resolve, reject) => {
     const sql = "DELETE FROM users WHERE userId=?";
     const values = [event.pathParameters.id];
     connection.query(sql, values, function (err, results) {
@@ -149,14 +160,20 @@ module.exports.deleteUser = async (event, context, callback) => {
   });
 
   
-  const result = await promise;
+  var result = await haveUserPromise.then(async result => {
+    if (result.length) {
+      return await deleteUserPromise;
+    } else {
+      return { userId: event.pathParameters.id }
+    }
+  })
   
   callback(null, {
     statusCode: result.error ? result.error.statusCode || 500 : 200,
     body: result.error
       ? "Error: Could not delete User: " + result.error
       : JSON.stringify({
-          message: "User deleted successfully!",
+          message: result.userId ? "Could found user with id: " + result.userId : "User deleted successfully!",
         }),
   });
 };
