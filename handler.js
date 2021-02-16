@@ -1,6 +1,86 @@
-const connection = require("./db_connect");
-
 ("use strict");
+const connection = require("./db_connect");
+const AWS = require('aws-sdk');
+const AmazonCognitoIdenty = require('amazon-cognito-identity-js');
+global.fetch = require('node-fetch')
+
+
+const UserPoolId = "us-east-1_OMQMoL5ak"
+const ClientId = "54v0fu6g3bdjrrmn49rum3h9i1"
+
+const poolData = {
+  UserPoolId,
+  ClientId
+}
+
+AWS.config.update({
+  region: 'us-east-1'
+})
+
+async function registerUserAWS(json) {
+  const {
+    telephoneNumber,
+    confirmationCode,
+    password
+  } = json
+  
+  return new Promise((resolve, reject) => {
+    let attibuteList = []
+
+    attibuteList.push(new AmazonCognitoIdenty.CognitoUserAttribute({
+      Name:"phone_number",
+      Value: telephoneNumber
+    }));
+
+    // attibuteList.push(new AmazonCognitoIdenty.CognitoUserAttribute({
+    //   Name:"custom:confirmationCode",
+    //   Value: confirmationCode
+    // }))
+
+    const userPool = new AmazonCognitoIdenty.CognitoUserPool(poolData)
+
+    userPool.signUp(telephoneNumber, password, attibuteList, null, function(err, result){
+      if(err) {
+        return resolve({
+          statusCode: 500,
+          err
+        })
+      }
+
+      resolve({
+        statusCode: 200,
+        confirmationCode,
+        message: 'User sucessfully registered'
+      })
+    })
+  })
+}
+
+module.exports.saveUserOnDatabase = async (event, context, callback) => {
+  console.log('SAVE', event)
+  callback(null, {
+    statusCode: 200,
+    body: 'POST SignUp Sucesssssssssss!'
+  })
+}
+
+
+module.exports.registerUser = async (event, context, callback) => {
+  // send the response right away when the callback runs, instead of waiting for the Node.js event loop to be empty
+  // for more info: https://docs.aws.amazon.com/lambda/latest/dg/nodejs-context.html
+  console.log('Body', event.body)
+  context.callbackWaitsForEmptyEventLoop = false;
+
+  const json = JSON.parse(event.body)
+  console.log('CHEGOU AQUI !!!')
+  const result = await registerUserAWS(json)
+
+  callback(null, {
+    statusCode: result.statusCode,
+    body: JSON.stringify(result)
+  })
+};
+
 
 module.exports.getUsers = async (event, context, callback) => {
   // send the response right away when the callback runs, instead of waiting for the Node.js event loop to be empty
@@ -177,3 +257,4 @@ module.exports.deleteUser = async (event, context, callback) => {
         }),
   });
 };
+
